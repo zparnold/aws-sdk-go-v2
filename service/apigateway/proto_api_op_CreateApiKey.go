@@ -33,9 +33,9 @@ func (c *Client) ProtoCreateAPIKeyRequest(input *CreateApiKeyInput) ProtoCreateA
 		input = &CreateApiKeyInput{}
 	}
 
-	output := &CreateApiKeyOutput{}
-
-	req := c.newRequest(op, input, output)
+	req := c.newRequest(op, input, &CreateApiKeyOutput{})
+	// swap existing build handler on svc, with a new named build handler
+	req.Handlers.Build.Swap(restjson.BuildHandler.Name, protoCreateAPIKeyMarshaler{input: input}.namedHandler())
 	// swap existing build handler on svc, with a new named build handler
 	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protoCreateAPIKeyUnmarshaler{output: output}.namedHandler())
 	return ProtoCreateAPIKeyRequest{Request: req, Input: input, Copy: c.ProtoCreateAPIKeyRequest}
