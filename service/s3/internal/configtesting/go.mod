@@ -8,7 +8,7 @@ require (
 )
 
 replace (
-	github.com/aws/aws-sdk-go-v2 => ../../../../
+	github.com/aws/aws-sdk-go-v2 => /Users/kotambka/go/src/github.com/aws/aws-sdk-go-v2
 	github.com/aws/aws-sdk-go-v2/config => ../../../../config/
 	github.com/aws/aws-sdk-go-v2/service/s3 => ../../
 )
@@ -22,3 +22,5 @@ replace github.com/aws/aws-sdk-go-v2/service/internal/s3shared => ../../../../se
 replace github.com/aws/aws-sdk-go-v2/service/sts => ../../../../service/sts/
 
 replace github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding => ../../../../service/internal/accept-encoding/
+
+replace github.com/awslabs/smithy-go => /Users/kotambka/go/src/github.com/aws/aws-sdk-go-v2/../../awslabs/smithy-go

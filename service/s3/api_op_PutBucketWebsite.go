@@ -74,6 +74,7 @@ func (c *Client) PutBucketWebsite(ctx context.Context, params *PutBucketWebsiteI
 	addMetadataRetrieverMiddleware(stack)
 	v4.AddContentSHA256HeaderMiddleware(stack)
 	disableAcceptEncodingGzip(stack)
+	smithyhttp.AddChecksumMiddleware(stack)
 
 	for _, fn := range options.APIOptions {
 		if err := fn(stack); err != nil {

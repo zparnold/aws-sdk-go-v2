@@ -74,6 +74,7 @@ func (c *Client) PutBucketTagging(ctx context.Context, params *PutBucketTaggingI
 	addMetadataRetrieverMiddleware(stack)
 	v4.AddContentSHA256HeaderMiddleware(stack)
 	disableAcceptEncodingGzip(stack)
+	smithyhttp.AddChecksumMiddleware(stack)
 
 	for _, fn := range options.APIOptions {
 		if err := fn(stack); err != nil {
