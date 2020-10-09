@@ -320,7 +320,8 @@ public class PresignURLCustomizations implements GoIntegration {
         Symbol operationSymbol = symbolProvider.toSymbol(operation);
         Symbol inputSymbol = symbolProvider.toSymbol(input);
 
-        String presignURLMember = symbolProvider.toMemberName(CodegenUtils.expectMember(input, "PresignedUrl"::equalsIgnoreCase));
+        String presignURLMember = symbolProvider.toMemberName(
+                CodegenUtils.expectMember(input, "PresignedUrl"::equalsIgnoreCase));
         String dstRegionMember = symbolProvider.toMemberName(CodegenUtils.expectMember(input, "DestinationRegion"));
         String srcRegionMember = symbolProvider.toMemberName(CodegenUtils.expectMember(input, "SourceRegion"));
 
@@ -336,19 +337,51 @@ public class PresignURLCustomizations implements GoIntegration {
                 addPresignMiddlewareFuncName(operationSymbol.getName()),
                 smithyStack,
                 () -> {
-                    writer.write("apiClient := New(options)");
-                    writer.write("presigner := $T(apiClient)", gen.getNewClientSymbol());
-                    writer.openBlock("return $T(stack, $T{","})", addMiddleware, addMiddlewareOptions, () -> {
+                    writer.write("presigner := $T(New(options))", gen.getNewClientSymbol());
+                    writer.openBlock("return $T(stack, $T{", "})", addMiddleware, addMiddlewareOptions, () -> {
                         writer.openBlock("Accessor: $T{", "},", parameterAccessor, () -> {
-                            writer.write("GetPresignedURL: $L,", getterFuncName(operationSymbol.getName(), presignURLMember));
-                            writer.write("GetSourceRegion: $L,", getterFuncName(operationSymbol.getName(), srcRegionMember));
+                            writer.write("GetPresignedURL: $L,",
+                                    getterFuncName(operationSymbol.getName(), presignURLMember));
+                            writer.write("GetSourceRegion: $L,",
+                                    getterFuncName(operationSymbol.getName(), srcRegionMember));
                             writer.write("CopyInput: $L,", copyInputFuncName(inputSymbol.getName()));
-                            writer.write("SetDestinationRegion: $L,", setterFuncName(operationSymbol.getName(), dstRegionMember));
-                            writer.write("SetPresignedURL: $L,", setterFuncName(operationSymbol.getName(), presignURLMember));
+                            writer.write("SetDestinationRegion: $L,",
+                                    setterFuncName(operationSymbol.getName(), dstRegionMember));
+                            writer.write("SetPresignedURL: $L,",
+                                    setterFuncName(operationSymbol.getName(), presignURLMember));
                         });
-                        writer.write("Presigner: presigner,");
+                        // Replace with type wrapping presigner for generic signature
+                        writer.write("Presigner: $T{},", opPresignClientWrapperName(operationSymbol.getName()));
                     });
                 });
+
+        // Generate generic presign wrapper type for passing region in with op call.
+        writer.openBlock("type $L struct {", "}",
+                opPresignClientWrapperName(operationSymbol.getName()),
+                () -> {
+                    writer.write("client *$T", gen.getClientSymbol());
+                });
+        writer.openBlock(
+                // TODO consider creating type for presign parameters for future compatibility.
+                "func (c *$L) PresignURL(ctx context.Context, region string, params interface{}) "
+                        + "(string, http.Header, error) {", "}",
+                opPresignClientWrapperName(operationSymbol.getName()),
+                () -> {
+                    writer.write("input, ok := params.($P)", inputSymbol);
+                    writer.openBlock("if !ok {", "}", () -> {
+                        writer.write("return ``, nil, fmt.Errorf(\"expect $P type, got %T\", params)", inputSymbol);
+                    });
+
+                    // TODO could be replaced with a `WithRegion` client option helper.
+                    writer.openBlock("optFn := func(o *Options) {", "}", () -> {
+                        writer.write("o.Region = region");
+                    });
+                    writer.write("return c.client.Presign$L(ctx, input, optFn)", operationSymbol.getName());
+                });
+    }
+
+    private static String opPresignClientWrapperName(String operationName) {
+        return String.format("%sAutoFillPresignClient", operationName);
     }
 
     private static String addPresignMiddlewareFuncName(String operationName) {

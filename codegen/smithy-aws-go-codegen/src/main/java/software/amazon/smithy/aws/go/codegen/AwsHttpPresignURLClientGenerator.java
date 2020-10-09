@@ -77,28 +77,40 @@ public class AwsHttpPresignURLClientGenerator {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
 
         writer.openBlock("type $T interface {", "}", clientAPISymbol, () -> {
-            writer.write("$T(context.Context, $P, ...func(*Options)) ($P, error)", operationSymbol, operationInputSymbol, operationOutputSymbol);
+            writer.write("$T(context.Context, $P, ...func(*Options)) ($P, error)", operationSymbol,
+                    operationInputSymbol, operationOutputSymbol);
         });
+
         writer.openBlock("type $T struct {", "}", clientSymbol, () -> {
+            // TODO if presigner client can depend directly on client
             writer.write("client $T", clientAPISymbol);
-            writer.openBlock("signer interface{","}", () -> {
+            writer.openBlock("signer interface{", "}", () -> {
                 writer.addUseImports(AwsGoDependency.AWS_CORE);
                 writer.addUseImports(SmithyGoDependency.NET_HTTP);
                 writer.addUseImports(SmithyGoDependency.TIME);
-                writer.write("PresignHTTP(context.Context, aws.Credentials, *http.Request, string, string, string, time.Duration, time.Time) (string, http.Header, error)");
+                writer.write(
+                        "PresignHTTP(context.Context, aws.Credentials, *http.Request, string, string, string, time.Duration, time.Time) (string, http.Header, error)");
             });
         });
-        writer.openBlock("func $L(client $T) *$T {", "}", newClientSymbol.getName(), clientAPISymbol, clientSymbol, () -> {
-            writer.openBlock("return &$T{", "}", clientSymbol, () -> {
-                writer.write("client: client,");
-                writer.write("signer: v4.NewSigner(),");
-            });
-        });
+
+        // TODO consider having the new presigner take options, not a SDK client, this allows the presigner to create its own client with its own configuration, e.g. stub http client.
+        writer.openBlock("func $L(client $T) *$T {", "}", newClientSymbol.getName(), clientAPISymbol, clientSymbol,
+                () -> {
+                    writer.openBlock("return &$T{", "}", clientSymbol, () -> {
+                        writer.write("client: client,");
+                        writer.write("signer: v4.NewSigner(),");
+                    });
+                });
+
         writer.openBlock(
-                "func (c *$T) Presign$T(ctx context.Context, input $P, optFns ...func(*Options)) (string, http.Header, error) {", "}",
+                // TODO consider creating type for presign parameters for future compatibility.
+                "func (c *$T) Presign$T(ctx context.Context, input $P, optFns ...func(*Options)) "
+                        + "(string, http.Header, error) {",
+                "}",
                 clientSymbol, operationSymbol, operationInputSymbol,
                 () -> {
-                    Symbol nopClient = SymbolUtils.createPointableSymbolBuilder("NopClient", SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
+                    Symbol nopClient = SymbolUtils.createPointableSymbolBuilder("NopClient",
+                            SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
                             .build();
 
                     // TODO could be replaced with a `WithAPIOptions` client option helper.
@@ -115,26 +127,11 @@ public class AwsHttpPresignURLClientGenerator {
                     // TODO on result shape.
                     writer.write("return ``, http.Header{}, fmt.Errorf(\"not implemented\")");
                 });
-
-        writer.openBlock(
-                "func (c *$T) PresignURL(ctx context.Context, region string, params interface{}) (string, http.Header, error) {", "}",
-                clientSymbol,
-                () -> {
-                    writer.write("input, ok := params.($P)", operationInputSymbol);
-                    writer.openBlock("if !ok {", "}", () -> {
-                        writer.write("return ``, nil, fmt.Errorf(\"expect $P type, got %T\", params)", operationInputSymbol);
-                    });
-
-                    // TODO could be replaced with a `WithRegion` client option helper.
-                    writer.openBlock("optFn := func(o *Options) {", "}", () -> {
-                        writer.write("o.Region = region");
-                    });
-                    writer.write("return c.Presign$L(ctx, input, optFn)", operationSymbol.getName());
-                });
     }
 
     /**
      * Writes the Presign client's conversion middleware to convert a regular API request to a presigned request.
+     *
      * @param writer writer to write to
      */
     public static void writeConvertToPresignMiddleware(GoWriter writer) {
@@ -175,8 +172,14 @@ public class AwsHttpPresignURLClientGenerator {
                 });
     }
 
-    public Symbol getClientSymbol() { return clientSymbol; }
-    public Symbol getNewClientSymbol() { return newClientSymbol; }
+    // TODO probably want to rename these to genPresignClientSymbol etc.
+    public Symbol getClientSymbol() {
+        return clientSymbol;
+    }
+
+    public Symbol getNewClientSymbol() {
+        return newClientSymbol;
+    }
 
     private static Symbol buildNewClientSymbol(Symbol operation, boolean exported) {
         String name = String.format("New%sHTTPPresignURLClient", operation.getName());
